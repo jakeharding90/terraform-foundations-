@@ -10,12 +10,12 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "jake-terraform-state-f48a66b9"
+ backend "s3" {
+    bucket         = "jake-terraform-state-318361291464-eu-west-2"
     key            = "global/terraform.tfstate"
     region         = "eu-west-2"
-    dynamodb_table = "terraform-locks"
     encrypt        = true
+    use_lockfile   = true
   }
 }
 
