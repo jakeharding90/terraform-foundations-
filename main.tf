@@ -7,6 +7,7 @@ locals {
   target_group_name = "${local.name_prefix}-tg"
   container_name    = "hello-app"
   container_port    = 80
+  app_environment   = var.environment
 
   common_tags = {
     Environment = var.environment
@@ -230,6 +231,7 @@ resource "aws_ecs_task_definition" "app" {
       image     = "nginx:latest"
       essential = true
 
+
       portMappings = [
         {
           containerPort = local.container_port
@@ -237,6 +239,23 @@ resource "aws_ecs_task_definition" "app" {
           protocol      = "tcp"
         }
       ]
+
+      environment = [
+        {
+          name  = "APP_ENV"
+          value = local.app_environment
+        }
+      ]
+
+
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
+      }
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -276,3 +295,28 @@ resource "aws_ecs_service" "app" {
   tags = local.common_tags
 }
 
+resource "aws_appautoscaling_target" "ecs" {
+  max_capacity       = 2
+  min_capacity       = 1
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "ecs_cpu" {
+  name               = "${local.name_prefix}-cpu-scaling"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.ecs.resource_id
+  scalable_dimension = aws_appautoscaling_target.ecs.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.ecs.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+
+    target_value       = 50
+    scale_in_cooldown  = 60
+    scale_out_cooldown = 60
+  }
+}
