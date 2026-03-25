@@ -225,34 +225,46 @@ resource "aws_ecs_task_definition" "app" {
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
 
- container_definitions = jsonencode([
-  {
-    name      = local.container_name
-    image     = "public.ecr.aws/amazonlinux/amazonlinux:latest"
-    essential = true
+  container_definitions = jsonencode([
+    {
+      name      = local.container_name
+      image     = "nginx:latest"
+      essential = true
 
-    command = ["sh", "-c", "while true; do :; done"]
+      portMappings = [
+        {
+          containerPort = local.container_port
+          hostPort      = local.container_port
+          protocol      = "tcp"
+        }
+      ]
 
-    environment = [
-      {
-        name  = "APP_ENV"
-        value = local.app_environment
+      environment = [
+        {
+          name  = "APP_ENV"
+          value = local.app_environment
+        }
+      ]
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 10
       }
-    ]
 
-    logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        awslogs-group         = aws_cloudwatch_log_group.ecs.name
-        awslogs-region        = var.aws_region
-        awslogs-stream-prefix = "ecs"
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.ecs.name
+          awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
       }
     }
-  }
-])
+  ])
 
-
-   
   tags = local.common_tags
 }
 
@@ -269,7 +281,11 @@ resource "aws_ecs_service" "app" {
     assign_public_ip = false
   }
 
-
+  load_balancer {
+    target_group_arn = aws_lb_target_group.ecs.arn
+    container_name   = local.container_name
+    container_port   = local.container_port
+  }
 
   depends_on = [aws_lb_listener.http]
 
@@ -277,8 +293,8 @@ resource "aws_ecs_service" "app" {
 }
 
 resource "aws_appautoscaling_target" "ecs" {
-  max_capacity       = 0
-  min_capacity       = 0
+  max_capacity       = 4
+  min_capacity       = 1
   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.app.name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
