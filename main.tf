@@ -230,7 +230,6 @@ resource "aws_ecs_task_definition" "app" {
       name      = local.container_name
       image     = "nginx:latest"
       essential = true
-
       portMappings = [
         {
           containerPort = local.container_port
@@ -316,4 +315,35 @@ resource "aws_appautoscaling_policy" "ecs_cpu" {
     scale_in_cooldown  = 60
     scale_out_cooldown = 60
   }
+}
+
+resource "aws_sns_topic" "alerts" {
+  name = "${local.name_prefix}-alerts"
+}
+
+resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
+  alarm_name          = "${local.name_prefix}-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 70
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.app.name
+  }
+
+  alarm_description  = "Alarm when ECS service CPU exceeds 70%"
+  treat_missing_data = "notBreaching"
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = "jake.harding@icloud.com"
 }
