@@ -351,7 +351,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_request_count_high" {
   namespace           = "AWS/ApplicationELB"
   period              = 60
   statistic           = "Sum"
-  threshold           = 200
+  threshold           = 2000
 
   alarm_actions = [aws_sns_topic.alerts.arn]
   ok_actions    = [aws_sns_topic.alerts.arn]
@@ -361,6 +361,31 @@ resource "aws_cloudwatch_metric_alarm" "alb_request_count_high" {
   }
 
   alarm_description  = "Alarm when ALB request count exceeds 200 per minute"
+  treat_missing_data = "notBreaching"
+}
+
+resource "aws_cloudwatch_metric_alarm" "alb_5xx_high" {
+  alarm_name          = "${local.name_prefix}-alb-5xx-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+
+  metric_name = "HTTPCode_ELB_5XX_Count"
+  namespace   = "AWS/ApplicationELB"
+  period      = 60
+  statistic   = "Sum"
+
+  threshold = 5
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+  LoadBalancer = aws_lb.main.arn_suffix
+  TargetGroup  = aws_lb_target_group.ecs.arn_suffix
+  }
+
+  alarm_description = "ALARM: ALB returning 5XX responses (>5 per minute). Indicates user-facing failures."
+
   treat_missing_data = "notBreaching"
 }
 
