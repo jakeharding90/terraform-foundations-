@@ -360,7 +360,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_request_count_high" {
     LoadBalancer = aws_lb.main.arn_suffix
   }
 
-  alarm_description  = "Alarm when ALB request count exceeds 200 per minute"
+  alarm_description  = "Alarm when ALB request count exceeds 2000 per minute"
   treat_missing_data = "notBreaching"
 }
 
@@ -380,11 +380,34 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_high" {
   ok_actions    = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-  LoadBalancer = aws_lb.main.arn_suffix
-  TargetGroup  = aws_lb_target_group.ecs.arn_suffix
+    LoadBalancer = aws_lb.main.arn_suffix
   }
 
   alarm_description = "ALARM: ALB returning 5XX responses (>5 per minute). Indicates user-facing failures."
+
+  treat_missing_data = "notBreaching"
+}
+
+resource "aws_cloudwatch_metric_alarm" "alb_unhealthy_targets" {
+  alarm_name          = "${local.name_prefix}-alb-unhealthy-targets"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+
+  metric_name = "UnHealthyHostCount"
+  namespace   = "AWS/ApplicationELB"
+  period      = 60
+  statistic   = "Average"
+  threshold   = 0
+
+  alarm_actions = [aws_sns_topic.alerts.arn]
+  ok_actions    = [aws_sns_topic.alerts.arn]
+
+  dimensions = {
+    LoadBalancer = aws_lb.main.arn_suffix
+    TargetGroup  = aws_lb_target_group.ecs.arn_suffix
+  }
+
+  alarm_description = "ALARM: One or more ECS targets are unhealthy behind the ALB. This indicates application or task failure."
 
   treat_missing_data = "notBreaching"
 }
